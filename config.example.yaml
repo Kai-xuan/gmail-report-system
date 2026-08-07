@@ -1,0 +1,32 @@
+# =============================================
+# 請複製此檔案，改名為 config.yaml，再填入設定
+# cp config.example.yaml config.yaml
+# =============================================
+
+schedule:
+  interval: weekly        # daily / weekly / custom
+  cron: "0 9 * * 1"       # 僅 custom 模式有效（分 時 日 月 星期）
+  query_days: 7           # 每次分析幾天內的郵件
+
+report:
+  recipients:
+    - your@email.com      # 收報告的信箱（可加多個）
+  smtp_host: smtp.gmail.com
+  smtp_port: 587
+  smtp_user: your_gmail@gmail.com       # 發信用的 Gmail 帳號
+  smtp_password: "your_app_password"    # Gmail 應用程式密碼（16位）
+
+spam_keywords:
+  - unsubscribe
+  - 退訂
+  - promotional
+  - newsletter
+  - no-reply
+  - noreply
+  - 優惠
+  - 限時特賣
+  - 免費領取
+
+anthropic:
+  model: claude-haiku-4-5-20251001
+  max_tokens: 200
