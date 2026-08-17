@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gmail 智慧報告系統</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0f1117;
+    --surface:   #1a1d27;
+    --surface2:  #222536;
+    --border:    #2e3148;
+    --border2:   #3d4268;
+    --text:      #e8eaf6;
+    --muted:     #7b7fa8;
+    --accent:    #6c63ff;
+    --accent2:   #8b83ff;
+    --success:   #34d399;
+    --warning:   #fbbf24;
+    --danger:    #f87171;
+    --font:      'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --mono:      'JetBrains Mono', 'Fira Code', monospace;
+    --radius:    12px;
+    --radius-sm: 8px;
+  }
+
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.6; font-size: 15px; }
+
+  .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+  /* ── Sidebar ── */
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 28px 0; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+  .sidebar-brand { padding: 0 24px 28px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .brand-icon { width: 40px; height: 40px; background: linear-gradient(135deg, var(--accent), #9b59b6); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 10px; }
+  .brand-name { font-size: 15px; font-weight: 600; }
+  .brand-sub  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 24px; color: var(--muted); cursor: pointer; font-size: 14px; font-weight: 500; transition: all .15s; border-left: 2px solid transparent; user-select: none; }
+  .nav-item:hover { color: var(--text); background: var(--surface2); }
+  .nav-item.active { color: var(--accent2); background: rgba(108,99,255,.08); border-left-color: var(--accent); }
+  .nav-icon { font-size: 18px; width: 22px; text-align: center; }
+
+  .sidebar-footer { margin-top: auto; padding: 20px 24px 0; border-top: 1px solid var(--border); }
+
+  .conn-badge { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; }
+  .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .conn-dot.ok  { background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .conn-dot.err { background: var(--danger); }
+  .conn-dot.warn { background: var(--warning); box-shadow: 0 0 6px var(--warning); }
+  .conn-text { color: var(--muted); line-height: 1.4; }
+  .conn-email { color: var(--text); font-weight: 500; display: block; }
+
+  /* ── Main ── */
+  .main { padding: 36px 40px; max-width: 860px; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .page-header { margin-bottom: 32px; }
+  .page-title { font-size: 24px; font-weight: 700; letter-spacing: -.3px; }
+  .page-sub   { font-size: 14px; color: var(--muted); margin-top: 4px; }
+
+  /* ── Cards ── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 20px; }
+  .card-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 16px; }
+
+  /* ── Auth banner ── */
+  .auth-banner { background: rgba(251,191,36,.07); border: 1px solid rgba(251,191,36,.25); border-radius: var(--radius); padding: 18px 22px; margin-bottom: 20px; display: none; }
+  .auth-banner.show { display: flex; align-items: center; gap: 16px; }
+  .auth-banner-text { flex: 1; }
+  .auth-banner-title { font-size: 14px; font-weight: 600; color: var(--warning); margin-bottom: 3px; }
+  .auth-banner-sub   { font-size: 13px; color: var(--muted); }
+
+  /* ── Stats ── */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; text-align: center; }
+  .stat-num   { font-size: 32px; font-weight: 700; letter-spacing: -1px; }
+  .stat-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .stat-num.accent  { color: var(--accent2); }
+  .stat-num.success { color: var(--success); }
+  .stat-num.warning { color: var(--warning); }
+
+  /* ── Buttons ── */
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; cursor: pointer; border: none; transition: all .15s; font-family: var(--font); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent2); transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--border2); }
+  .btn-warning { background: rgba(251,191,36,.12); color: var(--warning); border: 1px solid rgba(251,191,36,.25); }
+  .btn-warning:hover { background: rgba(251,191,36,.2); }
+  .btn-success { background: rgba(52,211,153,.12); color: var(--success); border: 1px solid rgba(52,211,153,.25); }
+
+  .run-btn { width: 100%; padding: 16px; font-size: 16px; border-radius: var(--radius); justify-content: center; background: linear-gradient(135deg, var(--accent), #9b59b6); color: #fff; border: none; cursor: pointer; font-family: var(--font); font-weight: 600; letter-spacing: .3px; transition: all .2s; display: flex; align-items: center; gap: 10px; }
+  .run-btn:hover    { opacity: .9; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(108,99,255,.3); }
+  .run-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* ── Log ── */
+  .log-wrap { background: #0a0b10; border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; height: 320px; overflow-y: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; }
+  .log-line      { color: #a8b0c8; }
+  .log-line.ok   { color: var(--success); }
+  .log-line.err  { color: var(--danger); }
+  .log-line.info { color: var(--accent2); }
+  .log-placeholder { color: var(--border2); text-align: center; margin-top: 120px; }
+
+  /* ── Form ── */
+  label { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 6px; }
+  input[type=text], input[type=email], input[type=password], input[type=number], select, textarea {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--text); font-family: var(--font); font-size: 14px; padding: 10px 14px; outline: none; transition: border-color .15s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
+
+  /* 密碼欄位包裝 */
+  .pass-wrap { position: relative; }
+  .pass-wrap input { padding-right: 90px; }
+  .pass-badge { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 11px; padding: 3px 8px; border-radius: 4px; background: rgba(52,211,153,.15); color: var(--success); border: 1px solid rgba(52,211,153,.25); display: none; white-space: nowrap; }
+  .pass-badge.show { display: inline-block; }
+
+  .form-row   { margin-bottom: 18px; }
+  .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+
+  .interval-pills { display: flex; gap: 8px; }
+  .pill { padding: 8px 18px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s; }
+  .pill.active { background: rgba(108,99,255,.15); border-color: var(--accent); color: var(--accent2); }
+
+  .alert { padding: 12px 16px; border-radius: var(--radius-sm); font-size: 13px; margin-bottom: 16px; display: none; }
+  .alert.show { display: flex; align-items: center; gap: 8px; }
+  .alert-success { background: rgba(52,211,153,.1); border: 1px solid rgba(52,211,153,.2); color: var(--success); }
+  .alert-error   { background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.2); color: var(--danger); }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; display: none; }
+  .spinner.show { display: inline-block; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  .pulsing { animation: pulse 1.5s ease-in-out infinite; }
+
+  .info-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .info-row:last-child { border-bottom: none; }
+  .info-key { color: var(--muted); }
+  .info-val { font-weight: 500; }
+  .info-val.ok  { color: var(--success); }
+  .info-val.err { color: var(--danger); }
+  .info-val.warn { color: var(--warning); }
+
+  /* ── Auth modal ── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: none; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(4px); }
+  .modal-overlay.show { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; max-width: 420px; width: 90%; text-align: center; }
+  .modal-icon { font-size: 48px; margin-bottom: 16px; }
+  .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .modal-sub { font-size: 14px; color: var(--muted); margin-bottom: 24px; line-height: 1.6; }
+  .modal-status { font-size: 13px; padding: 10px 16px; border-radius: var(--radius-sm); margin-bottom: 20px; }
+  .modal-status.waiting { background: rgba(251,191,36,.1); color: var(--warning); border: 1px solid rgba(251,191,36,.2); }
+  .modal-status.done    { background: rgba(52,211,153,.1); color: var(--success); border: 1px solid rgba(52,211,153,.2); }
+  .modal-status.error   { background: rgba(248,113,113,.1); color: var(--danger); border: 1px solid rgba(248,113,113,.2); }
+</style>
+</head>
+<body>
+
+<!-- ── Auth Modal ── -->
+<div class="modal-overlay" id="auth-modal">
+  <div class="modal">
+    <div class="modal-icon" id="modal-icon">🔐</div>
+    <div class="modal-title" id="modal-title">Gmail 授權</div>
+    <div class="modal-sub" id="modal-sub">系統正在開啟瀏覽器授權視窗，請在 Google 頁面點擊「允許」完成授權。</div>
+    <div class="modal-status waiting pulsing" id="modal-status">⏳ 等待授權中...</div>
+    <button class="btn btn-secondary" id="modal-close-btn" onclick="closeAuthModal()" style="display:none;width:100%;justify-content:center;">關閉</button>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">📬</div>
+      <div class="brand-name">Gmail 報告系統</div>
+      <div class="brand-sub">智慧郵件助理</div>
+    </div>
+    <nav>
+      <div class="nav-item active" data-page="dashboard" onclick="showPage(this)"><span class="nav-icon">🏠</span> 總覽</div>
+      <div class="nav-item" data-page="run" onclick="showPage(this)"><span class="nav-icon">▶️</span> 立即執行</div>
+      <div class="nav-item" data-page="settings" onclick="showPage(this)"><span class="nav-icon">⚙️</span> 設定</div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="conn-badge" id="conn-badge">
+        <div class="conn-dot" id="conn-dot"></div>
+        <div class="conn-text" id="conn-text">檢查連線中...</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main">
+
+    <!-- Token 失效提示橫幅 -->
+    <div class="auth-banner" id="auth-banner">
+      <div style="font-size:28px;">⚠️</div>
+      <div class="auth-banner-text">
+        <div class="auth-banner-title">Gmail 授權已失效，需要重新授權</div>
+        <div class="auth-banner-sub">點擊右側按鈕，在瀏覽器完成一次授權即可恢復正常。</div>
+      </div>
+      <button class="btn btn-warning" onclick="startAuth()">重新授權 Gmail</button>
+    </div>
+
+    <!-- ── 總覽 ── -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div class="page-title">總覽</div>
+        <div class="page-sub">Gmail 帳號狀態與系統設定摘要</div>
+      </div>
+      <div class="stats">
+        <div class="stat-card"><div class="stat-num accent" id="stat-total">—</div><div class="stat-label">信箱總郵件</div></div>
+        <div class="stat-card"><div class="stat-num success" id="stat-interval">—</div><div class="stat-label">回報週期</div></div>
+        <div class="stat-card"><div class="stat-num warning" id="stat-days">—</div><div class="stat-label">分析天數</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">連線狀態</div>
+        <div class="info-row"><span class="info-key">Gmail 帳號</span><span class="info-val" id="dash-email">讀取中...</span></div>
+        <div class="info-row"><span class="info-key">Gmail API</span><span class="info-val" id="dash-api">—</span></div>
+        <div class="info-row">
+          <span class="info-key">SMTP 發信設定</span>
+          <span class="info-val" id="dash-smtp">—</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">當前設定摘要</div>
+        <div class="info-row"><span class="info-key">回報週期</span><span class="info-val" id="dash-schedule">—</span></div>
+        <div class="info-row"><span class="info-key">報告收件人</span><span class="info-val" id="dash-recipients">—</span></div>
+        <div class="info-row"><span class="info-key">垃圾郵件關鍵字</span><span class="info-val" id="dash-keywords">—</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Gmail 授權管理</div>
+        <div class="info-row">
+          <span class="info-key">授權狀態</span>
+          <span class="info-val" id="dash-auth-status">—</span>
+        </div>
+        <div style="margin-top:16px;">
+          <button class="btn btn-warning" onclick="startAuth()" id="reauth-btn">🔄 重新授權 Gmail</button>
+          <span style="font-size:12px;color:var(--muted);margin-left:12px;">Token 失效或帳號變更時使用</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 立即執行 ── -->
+    <div class="page" id="page-run">
+      <div class="page-header">
+        <div class="page-title">立即執行報告</div>
+        <div class="page-sub">手動觸發一次完整分析，完成後發送報告到設定的信箱</div>
+      </div>
+      <div class="card">
+        <button class="run-btn" id="run-btn" onclick="runReport()">
+          <span id="run-spinner" class="spinner"></span>
+          <span id="run-label">▶ 開始分析並發送報告</span>
+        </button>
+        <p style="text-align:center;color:var(--muted);font-size:13px;margin-top:14px;" id="run-hint">
+          抓取郵件 → AI 分析重要性 → 自動標籤 → 寄出報告
+        </p>
+      </div>
+      <div class="card">
+        <div class="card-title">執行記錄</div>
+        <div class="log-wrap" id="log-box">
+          <div class="log-placeholder">點擊「開始分析」後，這裡會顯示執行過程</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 設定 ── -->
+    <div class="page" id="page-settings">
+      <div class="page-header">
+        <div class="page-title">系統設定</div>
+        <div class="page-sub">所有設定儲存後立即生效</div>
+      </div>
+      <div id="save-alert" class="alert"></div>
+
+      <div class="card">
+        <div class="card-title">回報週期</div>
+        <div class="form-row">
+          <label>執行頻率</label>
+          <div class="interval-pills">
+            <div class="pill" data-iv="daily"  onclick="setIntervalMode(this)">每天</div>
+            <div class="pill active" data-iv="weekly" onclick="setIntervalMode(this)">每週一</div>
+            <div class="pill" data-iv="custom" onclick="setIntervalMode(this)">自訂 Cron</div>
+          </div>
+        </div>
+        <div class="form-row" id="cron-row" style="display:none">
+          <label>Cron 表達式</label>
+          <input type="text" id="cron" placeholder="分 時 日 月 星期，例：0 9 * * 1">
+          <div class="hint">0 9 * * 1 = 每週一早上 9:00 ｜ 0 8 * * * = 每天早上 8:00</div>
+        </div>
+        <div class="form-row">
+          <label>分析天數（每次分析幾天內的郵件）</label>
+          <input type="number" id="query_days" min="1" max="30" value="7">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">報告發送設定</div>
+        <div class="form-row">
+          <label>收件人信箱（每行一個）</label>
+          <textarea id="recipients" rows="3" placeholder="boss@company.com&#10;manager@company.com"></textarea>
+        </div>
+        <div class="form-row-2">
+          <div>
+            <label>Gmail 帳號（發信用）</label>
+            <input type="email" id="smtp_user" placeholder="your@gmail.com">
+          </div>
+          <div>
+            <label>Gmail 應用程式密碼（16位）</label>
+            <div class="pass-wrap">
+              <input type="password" id="smtp_password" placeholder="留空 = 保留原本的密碼">
+              <span class="pass-badge" id="pass-badge">✓ 已設定</span>
+            </div>
+            <div class="hint">非登入密碼。已設定過可直接留空，不需重填。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">垃圾郵件關鍵字過濾</div>
+        <div class="form-row">
+          <label>關鍵字清單（每行一個）</label>
+          <textarea id="spam_keywords" rows="5" placeholder="unsubscribe&#10;退訂&#10;promotional&#10;優惠"></textarea>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" onclick="saveSettings()" style="padding:12px 32px;font-size:15px;">儲存設定</button>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ── State ──
+let currentInterval = 'weekly';
+let isRunning = false;
+let authPollTimer = null;
+
+// ── Navigation ──
+function showPage(el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + el.dataset.page).classList.add('active');
+  el.classList.add('active');
+}
+
+// ── Init ──
+window.addEventListener('DOMContentLoaded', async () => {
+  await checkStatus();
+  await loadConfig();
+});
+
+// ── Check Gmail connection ──
+async function checkStatus() {
+  const dot  = document.getElementById('conn-dot');
+  const text = document.getElementById('conn-text');
+  const banner = document.getElementById('auth-banner');
+
+  try {
+    const res  = await fetch('/api/status');
+    const data = await res.json();
+
+    if (data.success) {
+      dot.className  = 'conn-dot ok';
+      text.innerHTML = `<span class="conn-email">${data.email}</span>${data.total.toLocaleString()} 封郵件`;
+      banner.classList.remove('show');
+
+      document.getElementById('stat-total').textContent = data.total.toLocaleString();
+      document.getElementById('dash-email').textContent = data.email;
+      document.getElementById('dash-email').className   = 'info-val ok';
+      document.getElementById('dash-api').textContent   = '已連線 ✓';
+      document.getElementById('dash-api').className     = 'info-val ok';
+      document.getElementById('dash-auth-status').textContent = '授權有效 ✓';
+      document.getElementById('dash-auth-status').className   = 'info-val ok';
+    } else if (data.error === 'token_expired') {
+      dot.className  = 'conn-dot warn';
+      text.textContent = '授權已失效';
+      banner.classList.add('show');
+      document.getElementById('dash-api').textContent = '授權失效，需重新授權';
+      document.getElementById('dash-api').className   = 'info-val warn';
+      document.getElementById('dash-auth-status').textContent = '⚠️ 需重新授權';
+      document.getElementById('dash-auth-status').className   = 'info-val warn';
+    } else {
+      dot.className  = 'conn-dot err';
+      text.textContent = '未連線';
+      document.getElementById('dash-email').textContent = data.error || '未連線';
+      document.getElementById('dash-email').className   = 'info-val err';
+      document.getElementById('dash-api').textContent   = '未連線';
+      document.getElementById('dash-api').className     = 'info-val err';
+    }
+  } catch(e) {
+    dot.className = 'conn-dot err';
+    text.textContent = '連線失敗';
+  }
+}
+
+// ── Load config ──
+async function loadConfig() {
+  try {
+    const res  = await fetch('/api/config');
+    const data = await res.json();
+    if (!data.success) return;
+    const c = data.config;
+
+    // 密碼是否已設定
+    if (c.report?.smtp_password_set) {
+      document.getElementById('pass-badge').classList.add('show');
+      document.getElementById('smtp_password').placeholder = '留空 = 保留原本的密碼';
+    } else {
+      document.getElementById('pass-badge').classList.remove('show');
+      document.getElementById('smtp_password').placeholder = '請輸入 16 位應用程式密碼';
+    }
+
+    // Interval pills
+    const iv = c.schedule?.interval || 'weekly';
+    currentInterval = iv;
+    document.querySelectorAll('.pill').forEach(p => {
+      p.classList.toggle('active', p.dataset.iv === iv);
+    });
+    document.getElementById('cron-row').style.display = iv === 'custom' ? 'block' : 'none';
+
+    document.getElementById('cron').value        = c.schedule?.cron || '0 9 * * 1';
+    document.getElementById('query_days').value  = c.schedule?.query_days || 7;
+    document.getElementById('recipients').value  = (c.report?.recipients || []).join('\n');
+    document.getElementById('smtp_user').value   = c.report?.smtp_user || '';
+    document.getElementById('spam_keywords').value = (c.spam_keywords || []).join('\n');
+
+    // Dashboard
+    const ivLabel = { daily: '每天', weekly: '每週一', custom: '自訂 Cron' };
+    document.getElementById('stat-interval').textContent   = ivLabel[iv] || iv;
+    document.getElementById('stat-days').textContent       = (c.schedule?.query_days || 7) + ' 天';
+    document.getElementById('dash-schedule').textContent   = ivLabel[iv] || iv;
+    document.getElementById('dash-recipients').textContent = (c.report?.recipients || []).join(', ') || '未設定';
+    document.getElementById('dash-keywords').textContent   = (c.spam_keywords || []).length + ' 個關鍵字';
+
+    const smtpOk = c.report?.smtp_password_set && c.report?.smtp_user;
+    document.getElementById('dash-smtp').textContent = smtpOk ? '已設定 ✓' : '未設定';
+    document.getElementById('dash-smtp').className   = 'info-val ' + (smtpOk ? 'ok' : 'err');
+
+  } catch(e) { console.error(e); }
+}
+
+// ── Interval pills ──
+function setIntervalMode(el) {
+  currentInterval = el.dataset.iv;
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('cron-row').style.display = currentInterval === 'custom' ? 'block' : 'none';
+}
+
+// ── Save settings ──
+async function saveSettings() {
+  const alertEl = document.getElementById('save-alert');
+  alertEl.className = 'alert';
+
+  const payload = {
+    interval:      currentInterval,
+    cron:          document.getElementById('cron').value,
+    query_days:    document.getElementById('query_days').value,
+    recipients:    document.getElementById('recipients').value,
+    smtp_user:     document.getElementById('smtp_user').value,
+    smtp_password: document.getElementById('smtp_password').value,  // 空字串 = 保留原本
+    spam_keywords: document.getElementById('spam_keywords').value,
+  };
+
+  try {
+    const res  = await fetch('/api/config', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const data = await res.json();
+
+    if (data.success) {
+      alertEl.textContent = '✓ 設定已儲存';
+      alertEl.className   = 'alert show alert-success';
+      document.getElementById('smtp_password').value = '';  // 清空密碼欄
+      await loadConfig();  // 重新載入，更新「已設定」徽章
+    } else {
+      alertEl.textContent = '✗ 儲存失敗：' + data.error;
+      alertEl.className   = 'alert show alert-error';
+    }
+  } catch(e) {
+    alertEl.textContent = '✗ 網路錯誤：' + e.message;
+    alertEl.className   = 'alert show alert-error';
+  }
+  setTimeout(() => alertEl.className = 'alert', 3500);
+}
+
+// ── Gmail Auth ──
+async function startAuth() {
+  // 顯示 modal
+  document.getElementById('auth-modal').classList.add('show');
+  document.getElementById('modal-icon').textContent   = '🔐';
+  document.getElementById('modal-title').textContent  = 'Gmail 授權';
+  document.getElementById('modal-sub').textContent    = '系統正在開啟瀏覽器授權視窗，請在 Google 頁面點擊「允許」完成授權。';
+  document.getElementById('modal-status').textContent = '⏳ 等待授權中...';
+  document.getElementById('modal-status').className   = 'modal-status waiting pulsing';
+  document.getElementById('modal-close-btn').style.display = 'none';
+
+  // 發起授權
+  await fetch('/api/auth/start', { method: 'POST' });
+
+  // 輪詢授權結果（每 2 秒一次）
+  clearInterval(authPollTimer);
+  authPollTimer = setInterval(async () => {
+    try {
+      const res  = await fetch('/api/auth/status');
+      const data = await res.json();
+
+      if (data.state === 'done') {
+        clearInterval(authPollTimer);
+        document.getElementById('modal-icon').textContent   = '✅';
+        document.getElementById('modal-title').textContent  = '授權成功';
+        document.getElementById('modal-sub').textContent    = data.message;
+        document.getElementById('modal-status').textContent = '授權完成，可以關閉此視窗';
+        document.getElementById('modal-status').className   = 'modal-status done';
+        document.getElementById('modal-close-btn').style.display = 'block';
+        document.getElementById('auth-banner').classList.remove('show');
+        await checkStatus();
+
+      } else if (data.state === 'error') {
+        clearInterval(authPollTimer);
+        document.getElementById('modal-icon').textContent   = '❌';
+        document.getElementById('modal-title').textContent  = '授權失敗';
+        document.getElementById('modal-sub').textContent    = data.message;
+        document.getElementById('modal-status').textContent = '請關閉後重試';
+        document.getElementById('modal-status').className   = 'modal-status error';
+        document.getElementById('modal-close-btn').style.display = 'block';
+      }
+    } catch(e) {}
+  }, 2000);
+}
+
+function closeAuthModal() {
+  clearInterval(authPollTimer);
+  document.getElementById('auth-modal').classList.remove('show');
+}
+
+// ── Run report ──
+async function runReport() {
+  if (isRunning) return;
+  isRunning = true;
+
+  const btn     = document.getElementById('run-btn');
+  const spinner = document.getElementById('run-spinner');
+  const label   = document.getElementById('run-label');
+  const hint    = document.getElementById('run-hint');
+  const logBox  = document.getElementById('log-box');
+
+  btn.disabled      = true;
+  spinner.className = 'spinner show';
+  label.textContent = '執行中...';
+  hint.textContent  = '請勿關閉視窗，分析完成後會自動通知';
+  logBox.innerHTML  = '';
+
+  await fetch('/api/run', { method: 'POST' });
+
+  const es = new EventSource('/api/stream');
+  es.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if (data.ping) return;
+
+    if (data.log === '__DONE__') {
+      es.close();
+      isRunning         = false;
+      btn.disabled      = false;
+      spinner.className = 'spinner';
+      label.textContent = '▶ 開始分析並發送報告';
+      hint.textContent  = '執行完成！請查收報告信件 📬';
+      return;
+    }
+
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    if (data.log.includes('✅') || data.log.includes('成功')) line.className += ' ok';
+    else if (data.log.includes('❌') || data.log.includes('失敗') || data.log.includes('⚠️')) line.className += ' err';
+    else if (data.log.includes('🚀') || data.log.includes('📬') || data.log.includes('🤖')) line.className += ' info';
+    line.textContent = data.log;
+    logBox.appendChild(line);
+    logBox.scrollTop = logBox.scrollHeight;
+  };
+
+  es.onerror = () => {
+    es.close();
+    isRunning         = false;
+    btn.disabled      = false;
+    spinner.className = 'spinner';
+    label.textContent = '▶ 開始分析並發送報告';
+  };
+}
+</script>
+</body>
+</html>
